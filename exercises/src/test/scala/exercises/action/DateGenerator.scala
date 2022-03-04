@@ -7,7 +7,7 @@ import org.scalacheck.{Arbitrary, Gen}
 object DateGenerator {
   val dateGen: Gen[LocalDate] =
     Gen
-      .choose(LocalDate.MIN.toEpochDay, LocalDate.MAX.toEpochDay)
+      .choose(LocalDate.of(1950, 1, 1).toEpochDay, LocalDate.MAX.toEpochDay)
       .map(LocalDate.ofEpochDay)
 
   implicit val localDateArb: Arbitrary[LocalDate] =
@@ -21,4 +21,10 @@ object DateGenerator {
 
   implicit val instantArb: Arbitrary[Instant] =
     Arbitrary(instantGen)
+
+  val negativeValue    = Gen.negNum[Int]
+  val randomMaxAttempt = Gen.posNum[Int]
+  val randomStrings    = Gen.listOf(Gen.listOfN(5, Gen.alphaChar).map(_.mkString))
+  val randomBool       = Gen.oneOf(true, false)
+
 }

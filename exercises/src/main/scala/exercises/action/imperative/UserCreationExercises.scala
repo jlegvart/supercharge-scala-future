@@ -6,6 +6,7 @@ import java.time.{Instant, LocalDate}
 import scala.annotation.tailrec
 import scala.io.StdIn
 import scala.util.{Failure, Success, Try}
+import scala.annotation.switch
 
 // Run the App using the green arrow next to object (if using IntelliJ)
 // or run `sbt` in the terminal to open it in shell mode, then type:
@@ -13,24 +14,24 @@ import scala.util.{Failure, Success, Try}
 object UserCreationApp extends App {
   import UserCreationExercises._
 
-  readUser()
+  readSubscribeToMailingListRetry(Console.system, 3)
 }
 
 object UserCreationExercises {
   val dateOfBirthFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
 
-  case class User(name: String, dateOfBirth: LocalDate, createdAt: Instant)
+  case class User(name: String, dateOfBirth: LocalDate, subscribedToMailingList: Boolean, createdAt: Instant)
 
-  def readUser(): User = {
-    println("What's your name?")
-    val name = StdIn.readLine()
-    println("What's your date of birth? [dd-mm-yyyy]")
-    val dateOfBirth = LocalDate.parse(StdIn.readLine(), dateOfBirthFormatter)
-    val now         = Instant.now()
-    val user        = User(name, dateOfBirth, now)
-    println(s"User is $user")
-    user
-  }
+  // def readUser(): User = {
+  //   println("What's your name?")
+  //   val name = StdIn.readLine()
+  //   println("What's your date of birth? [dd-mm-yyyy]")
+  //   val dateOfBirth = LocalDate.parse(StdIn.readLine(), dateOfBirthFormatter)
+  //   val now         = Instant.now()
+  //   val user        = User(name, dateOfBirth, now)
+  //   println(s"User is $user")
+  //   user
+  // }
 
   // 1. Implement `readSubscribeToMailingList` which asks if the user wants to
   // subscribe to our mailing list. They can answer "Y" for yes or "N" for No.
@@ -44,8 +45,16 @@ object UserCreationExercises {
   // Throws an exception.
   // Note: You can read a user input using `StdIn.readLine()`.
   // Note: You can use `throw new IllegalArgumentException("...")` to throw an exception.
-  def readSubscribeToMailingList(): Boolean =
-    ???
+  def readSubscribeToMailingList(): Boolean = {
+    println("Would you like to subscribe to our mailing list? [Y/N]")
+
+    val subscriptionIn = StdIn.readLine()
+    subscriptionIn match {
+      case "Y" => true
+      case "N" => false
+      case _   => throw new IllegalArgumentException(s"Invalid argument: $subscriptionIn")
+    }
+  }
 
   // 2. How can we test `readSubscribeToMailingList`?
   // We cannot use example-based tests or property-based tests
@@ -56,8 +65,21 @@ object UserCreationExercises {
   // Then, try to test this version using property-based testing.
   // Note: Check the `Console` companion object.
   // Bonus: Try to write a property-based test for `readSubscribeToMailingList`
-  def readSubscribeToMailingList(console: Console): Boolean =
-    ???
+  def readSubscribeToMailingList(console: Console): Boolean = {
+    console.writeLine("Would you like to subscribe to our mailing list? [Y/N]")
+
+    parseSubscription(console.readLine())
+  }
+
+  def parseSubscription(yN: String): Boolean =
+    yN match {
+      case "Y" => true
+      case "N" => false
+      case _   => throw new IllegalArgumentException(s"Invalid argument: $yN")
+    }
+
+  def formatYesNo(yesNo: Boolean) =
+    if (yesNo) "Y" else "N"
 
   // 3. Implement `readDateOfBirth` which asks the date of birth of the user.
   // User must answer using the format `dd-mm-yyyy`, e.g. "18-03-2001" for 18th of March 2001.
@@ -71,8 +93,12 @@ object UserCreationExercises {
   // Throws an exception.
   // Note: You can use `LocalDate.parse` to parse a String into a LocalDate.
   // Note: You can use the formatter `dateOfBirthFormatter` (in scope).
-  def readDateOfBirth(console: Console): LocalDate =
-    ???
+  def readDateOfBirth(console: Console): LocalDate = {
+    console.writeLine("What's your date of birth? [dd-mm-yyyy]")
+
+    val dateOfBirth = console.readLine()
+    LocalDate.parse(dateOfBirth, dateOfBirthFormatter)
+  }
 
   // 4. Implement a testable version of `readUser`.
   // For example,
@@ -92,12 +118,25 @@ object UserCreationExercises {
   // Note: You will need to add `subscribedToMailingList: Boolean` field to `User`.
   // Note: How can you mock the current time? Check the `Clock` class in this package
   //       and update the signature of `readUser`.
-  def readUser(console: Console): User =
-    ???
+  def readUser(console: Console, clock: Clock): User = {
+    val name         = readName(console)
+    val dateOfBirth  = readDateOfBirthRetry(console, 3)
+    val subscription = readSubscribeToMailingListRetry(console, 3)
+    val time         = clock.now()
+    val user         = User(name, dateOfBirth, subscription, time)
 
-  //////////////////////////////////////////////
+    console.writeLine(s"User is $user")
+    user
+  }
+
+  def readName(console: Console): String = {
+    console.writeLine("What's your name?")
+    console.readLine()
+  }
+
+  // ////////////////////////////////////////////
   // PART 2: Error handling
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
 
   // 5. Implement `readSubscribeToMailingListRetry` which behaves like
   // `readSubscribeToMailingList` but retries if the user enters an invalid input.
@@ -117,7 +156,12 @@ object UserCreationExercises {
   // Note: You can implement the retry logic using recursion or a for/while loop. I suggest
   //       trying both possibilities.
   def readSubscribeToMailingListRetry(console: Console, maxAttempt: Int): Boolean =
-    ???
+    retry(maxAttempt) {
+      onError(
+        action = readSubscribeToMailingList(console),
+        cleanup = _ => console.writeLine("""Incorrect format, enter "Y" for Yes or "N" for "No"""")
+      )
+    }
 
   // 6. Implement `readDateOfBirthRetry` which behaves like
   // `readDateOfBirth` but retries when the user enters an invalid input.
@@ -135,14 +179,19 @@ object UserCreationExercises {
   // Throws an exception because the user only had 1 attempt and they entered an invalid input.
   // Note: `maxAttempt` must be greater than 0, if not you should throw an exception.
   def readDateOfBirthRetry(console: Console, maxAttempt: Int): LocalDate =
-    ???
+    retry(maxAttempt) {
+      onError(
+        action = readDateOfBirth(console),
+        cleanup = _ => console.writeLine("""Incorrect format, for example enter "18-03-2001" for 18th of March 2001""")
+      )
+    }
 
   // 7. Update `readUser` so that it allows the user to make up to 2 mistakes (3 attempts)
   // when entering their date of birth and mailing list subscription flag.
 
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
   // Bonus question (not covered by the videos)
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
 
   // 8. Implement `readSubscribeToMailingListRetry` using a while-loop instead of a recursion.
 

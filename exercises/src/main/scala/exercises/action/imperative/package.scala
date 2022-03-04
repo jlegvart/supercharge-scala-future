@@ -25,8 +25,15 @@ package object imperative {
   // Note: `action: => A` is a by-name parameter (see the Evaluation lesson).
   // Note: `maxAttempt` must be greater than 0, if not you should throw an exception.
   // Note: Tests are in the `exercises.action.imperative.ImperativeActionTest`
+  @tailrec
   def retry[A](maxAttempt: Int)(action: => A): A =
-    ???
+    if (maxAttempt <= 0) throw new IllegalArgumentException(s"Invalid maxAttempt value: $maxAttempt")
+    else if (maxAttempt == 1) action
+    else
+      Try(action) match {
+        case Failure(exception) => retry(maxAttempt - 1)(action)
+        case Success(value)     => value
+      }
 
   // 2. Refactor `readSubscribeToMailingListRetry` in `UserCreationExercises` using `retry`.
 
@@ -40,15 +47,20 @@ package object imperative {
   // Prints "An error occurred: Boom" and then rethrow the "Boom" exception.
   // Note: You need to write tests for `onError` yourself in `exercises.action.imperative.ImperativeActionTest`
   def onError[A](action: => A, cleanup: Throwable => Any): A =
-    ???
+    Try(action) match {
+      case Failure(exception) =>
+        cleanup(exception)
+        throw exception
+      case Success(value) => value
+    }
 
   // 4. Refactor `readSubscribeToMailingListRetry` using `onError` in `UserCreationExercises`.
 
   // 5. Refactor `readDateOfBirthRetry` using `retry` and `onError` in `UserCreationExercises`.
 
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
   // Bonus questions (not covered by the video)
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
 
   // 6. Write a property based for `retry`. For example,
   // Step 1. Generate a function that throws an exception for the first `n` evaluations.
