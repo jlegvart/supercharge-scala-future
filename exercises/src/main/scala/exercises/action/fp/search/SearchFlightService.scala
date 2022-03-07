@@ -25,8 +25,15 @@ object SearchFlightService {
   //       You can also defined tests for `SearchResult` in `SearchResultTest`
   def fromTwoClients(client1: SearchFlightClient, client2: SearchFlightClient): SearchFlightService =
     new SearchFlightService {
-      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] =
-        ???
+      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] = {
+        def searchByClient(client: SearchFlightClient): IO[List[Flight]] =
+          client.search(from, to, date).handleErrorWith(_ => IO(List.empty))
+
+        for {
+          c1 <- searchByClient(client1)
+          c2 <- searchByClient(client2)
+        } yield SearchResult(c1 ++ c2)
+      }
 
     }
 
@@ -52,9 +59,9 @@ object SearchFlightService {
 
   // 5. Refactor `fromClients` using `sequence` or `traverse` from the `IO` companion object.
 
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
   // Concurrent IO
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
 
   // 6. Each client's search request is executed sequentially - one after another.
   //    Here are the current execution steps of `fromTwoClients`
@@ -71,9 +78,9 @@ object SearchFlightService {
   //    4. receive list of flights from client 2
   //    5. aggregate results from client 1 and 2
 
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
   // Bonus question (not covered by the videos)
-  //////////////////////////////////////////////
+  // ////////////////////////////////////////////
 
   // 10. `fromClients` wait for the results from every single client. This means that
   // if one client is extremely slow, it will slow down the overall request.
