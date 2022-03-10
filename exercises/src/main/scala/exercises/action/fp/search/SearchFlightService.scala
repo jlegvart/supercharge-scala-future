@@ -34,6 +34,22 @@ object SearchFlightService {
           c2 <- searchByClient(client2)
         } yield SearchResult(c1 ++ c2)
       }
+    }
+
+  def fromTwoClients(
+    client1: SearchFlightClient,
+    client2: SearchFlightClient,
+    ec: ExecutionContext
+  ): SearchFlightService =
+    new SearchFlightService {
+      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] = {
+        def searchByClient(client: SearchFlightClient): IO[List[Flight]] =
+          client.search(from, to, date).handleErrorWith(_ => IO(List.empty))
+
+        searchByClient(client1).parZip(searchByClient(client2))(ec).map { case (flights1, flights2) =>
+          SearchResult(flights1 ++ flights2)
+        }
+      }
 
     }
 
@@ -53,8 +69,42 @@ object SearchFlightService {
   // Note: We can assume `clients` to contain less than 100 elements.
   def fromClients(clients: List[SearchFlightClient]): SearchFlightService =
     new SearchFlightService {
-      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] =
-        ???
+      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] = {
+        // @tailrec
+        // def searchFromClients(clients: List[SearchFlightClient], flights: IO[List[Flight]]): IO[List[Flight]] =
+        //   clients match {
+        //     case Nil => flights
+        //     case head :: next =>
+        //       val result = for {
+        //         result <- head.search(from, to, date).handleErrorWith(_ => IO(List.empty))
+        //         agg    <- flights
+        //       } yield agg ++ result
+
+        //       searchFromClients(next, result)
+        //   }
+
+        // searchFromClients(clients, IO(List.empty)).map(SearchResult(_))
+        def searchFromClient(client: SearchFlightClient): IO[List[Flight]] =
+          client.search(from, to, date).handleErrorWith(_ => IO(List.empty))
+
+        clients
+          .traverse(searchFromClient)
+          .map(_.flatten)
+          .map(SearchResult(_))
+      }
+    }
+
+  def fromClients(clients: List[SearchFlightClient], ec: ExecutionContext): SearchFlightService =
+    new SearchFlightService {
+      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] = {
+        def searchFromClient(client: SearchFlightClient): IO[List[Flight]] =
+          client.search(from, to, date).handleErrorWith(_ => IO(List.empty))
+
+        clients
+          .parTraverse(searchFromClient)(ec)
+          .map(_.flatten)
+          .map(SearchResult(_))
+      }
     }
 
   // 5. Refactor `fromClients` using `sequence` or `traverse` from the `IO` companion object.

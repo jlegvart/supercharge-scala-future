@@ -5,6 +5,7 @@ import scala.annotation.tailrec
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success, Try}
+import java.util.concurrent.TimeUnit
 
 trait IO[A] {
 
@@ -133,8 +134,14 @@ trait IO[A] {
 
   // Runs both the current IO and `other` concurrently,
   // then combine their results into a tuple
-  def parZip[Other](other: IO[Other])(ec: ExecutionContext): IO[(A, Other)] =
-    ???
+  def parZip[Other](other: IO[Other])(ec: ExecutionContext): IO[(A, Other)] = {
+    implicit val executionContext = ec
+
+    val first  = Future(this.unsafeRun())
+    val second = Future(other.unsafeRun())
+
+    IO(Await.result(first.zip(second), Duration.Inf))
+  }
 
 }
 
@@ -172,7 +179,14 @@ object IO {
   // If no error occurs, it returns the users in the same order:
   // List(User(1111, ...), User(2222, ...), User(3333, ...))
   def sequence[A](actions: List[IO[A]]): IO[List[A]] =
-    ???
+    actions
+      .foldLeft(IO(List.empty[A])) { (list, action) =>
+        for {
+          agg    <- list
+          result <- action
+        } yield result :: agg
+      }
+      .map(_.reverse)
 
   // `traverse` is a shortcut for `map` followed by `sequence`, similar to how
   // `flatMap`  is a shortcut for `map` followed by `flatten`
@@ -196,7 +210,13 @@ object IO {
   // List(User(1111, ...), User(2222, ...), User(3333, ...))
   // Note: You may want to use `parZip` to implement `parSequence`.
   def parSequence[A](actions: List[IO[A]])(ec: ExecutionContext): IO[List[A]] =
-    ???
+    actions
+      .foldLeft(IO(List.empty[A])) { (list, action) =>
+        list.parZip(action)(ec).map { case (a, b) =>
+          b :: a
+        }
+      }
+      .map(_.reverse)
 
   // `parTraverse` is a shortcut for `map` followed by `parSequence`, similar to how
   // `flatMap`     is a shortcut for `map` followed by `flatten`
