@@ -26,6 +26,19 @@ class IOTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks {
     assert(counter == 2)
   }
 
+  test("dispatch is lazy and repeatable") {
+    var counter = 0
+
+    val action = IO.dispatch(counter += 1)(ExecutionContext.global)
+    assert(counter == 0) // nothing happened
+
+    action.unsafeRun()
+    assert(counter == 1)
+
+    action.unsafeRun()
+    assert(counter == 2)
+  }
+
   // replace `ignore` by `test` to enable this test
   test("andThen") {
     var counter = 0
